@@ -1,0 +1,29 @@
+.full-container { min-height: 500px; }
+
+.scroll-box {
+    height: 400px; /* Locked height */
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #dddbda;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.custom-error-report {
+    border: 2px solid #c23934;
+    border-radius: 4px;
+    background-color: #ffb3b3; /* Diagnostic Red background */
+    margin-top: 20px;
+}
+
+.error-report-header {
+    background-color: #c23934;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.error-report-body {
+    color: #000000 !important; /* Force Black Font */
+    font-weight: 800;
+    font-family: 'Courier New', Courier, monospace;
+}

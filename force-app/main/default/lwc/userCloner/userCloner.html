@@ -1,0 +1,524 @@
+<template>
+    <lightning-card title="Precision User Cloner" icon-name="standard:user">
+        <div class="slds-p-around_medium full-container">
+
+            <div class="slds-m-bottom_large">
+                <lightning-progress-indicator
+                    current-step={currentStep}
+                    type="path"
+                    variant="base"
+                    onstepselect={handleStepSelect}>
+                    <lightning-progress-step label="Phase 1: Licenses" value="1"></lightning-progress-step>
+                    <lightning-progress-step label="Phase 2: Permission Assignments" value="2"></lightning-progress-step>
+                    <lightning-progress-step label="Phase 3: Groups & Queues" value="3"></lightning-progress-step>
+                </lightning-progress-indicator>
+            </div>
+
+            <div class="slds-grid slds-grid_align-center slds-m-bottom_medium">
+                <lightning-button-group>
+                    <lightning-button
+                        label="Phase 1: Licenses"
+                        onclick={setStep1}
+                        variant={step1Variant}
+                        icon-name="utility:key">
+                    </lightning-button>
+                    <lightning-button
+                        label="Phase 2: Permission Assignments"
+                        onclick={setStep2}
+                        variant={step2Variant}
+                        icon-name="utility:lock">
+                    </lightning-button>
+                    <lightning-button
+                        label="Phase 3: Groups & Queues"
+                        onclick={setStep3}
+                        variant={step3Variant}
+                        icon-name="utility:groups">
+                    </lightning-button>
+                </lightning-button-group>
+            </div>
+
+            <div class="slds-grid slds-gutters slds-m-bottom_medium">
+                <div class="slds-col slds-size_1-of-2">
+                    <lightning-record-picker
+                        label="Source User"
+                        object-api-name="User"
+                        value={sourceUserId}
+                        onchange={handleSourceChange}>
+                    </lightning-record-picker>
+                </div>
+
+                <div class="slds-col slds-size_1-of-2">
+                    <lightning-record-picker
+                        label="Target User"
+                        object-api-name="User"
+                        value={targetUserId}
+                        onchange={handleTargetChange}>
+                    </lightning-record-picker>
+
+                    <lightning-button
+                        label="Create Target User from Source"
+                        icon-name="utility:adduser"
+                        variant="neutral"
+                        onclick={openCreateTargetUserModal}
+                        class="slds-m-top_small">
+                    </lightning-button>
+                </div>
+            </div>
+
+            <lightning-button
+                label="Analyze Gaps Across Users"
+                onclick={handleAnalyzeClick}
+                variant="brand"
+                stretch
+                class="slds-m-bottom_medium"
+                icon-name="utility:search">
+            </lightning-button>
+
+            <template if:true={hasPhase2Job}>
+                <div class="slds-box slds-theme_info slds-m-bottom_medium">
+                    <div class="slds-grid slds-grid_vertical-align-center slds-grid_align-spread">
+                        <div>
+                            <div class="slds-text-title_caps slds-m-bottom_x-small">Phase 2 Background Job</div>
+                            <div class="slds-text-body_regular">{phase2StatusText}</div>
+                            <div class="slds-text-body_small slds-m-top_x-small">
+                                Selected assignments in this run: {phase2SelectedCount}
+                            </div>
+                        </div>
+                        <template if:true={isPhase2JobRunning}>
+                            <lightning-spinner alternative-text="Phase 2 job running..." size="small"></lightning-spinner>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={isStep1}>
+                <div class="slds-box slds-theme_shade phase-box">
+
+                    <div class="slds-grid slds-grid_vertical-align-start slds-wrap slds-m-bottom_small">
+                        <div class="slds-col slds-size_1-of-3">
+                            <div class="slds-text-title_caps slds-m-bottom_x-small">Analysis Summary</div>
+                            <div class="slds-text-body_regular">{analysisSummary}</div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-3 slds-align_absolute-center">
+                            <div class="slds-m-top_small">
+                                <lightning-button
+                                    label="Apply & Next"
+                                    onclick={cloneLic}
+                                    variant="success"
+                                    icon-name="utility:forward">
+                                </lightning-button>
+
+                                <lightning-button
+                                    label="Skip to Phase 2"
+                                    onclick={setStep2}
+                                    variant="brand-outline"
+                                    icon-name="utility:jump_to_right"
+                                    class="slds-m-left_small">
+                                </lightning-button>
+                            </div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-3"></div>
+                    </div>
+
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <h3 class="slds-text-heading_small">Missing Licenses ({missingLic.length})</h3>
+                        <lightning-input type="checkbox" label="Select All" onchange={handleSelectAllLic}></lightning-input>
+                    </div>
+
+                    <div class="scroll-box">
+                        <template if:true={hasLicenses}>
+                            <template for:each={missingLic} for:item="lic">
+                                <div key={lic.id} class="slds-p-around_xx-small slds-border_bottom slds-grid slds-grid_vertical-align-center">
+                                    <lightning-input
+                                        type="checkbox"
+                                        value={lic.id}
+                                        data-id="licCheck"
+                                        class="slds-m-right_small">
+                                    </lightning-input>
+                                    <lightning-icon
+                                        icon-name={lic.icon}
+                                        size="xx-small"
+                                        class="slds-m-right_small">
+                                    </lightning-icon>
+                                    <span>{lic.label}</span>
+                                </div>
+                            </template>
+                        </template>
+                        <template if:false={hasLicenses}>
+                            <div class="slds-text-color_weak slds-p-around_small">
+                                No missing licenses found.
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={isStep2}>
+                <div class="slds-box phase-box">
+
+                    <div class="slds-grid slds-grid_vertical-align-start slds-wrap slds-m-bottom_small">
+                        <div class="slds-col slds-size_1-of-3">
+                            <div class="slds-text-title_caps slds-m-bottom_x-small">Analysis Summary</div>
+                            <div class="slds-text-body_regular">{analysisSummary}</div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-3 slds-align_absolute-center">
+                            <div class="slds-m-top_small">
+                                <lightning-button
+                                    label="Apply & Next"
+                                    onclick={clonePerm}
+                                    variant="success"
+                                    icon-name="utility:forward">
+                                </lightning-button>
+
+                                <lightning-button
+                                    label="Skip to Phase 3"
+                                    onclick={setStep3}
+                                    variant="brand-outline"
+                                    icon-name="utility:jump_to_right"
+                                    class="slds-m-left_small">
+                                </lightning-button>
+                            </div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-3"></div>
+                    </div>
+
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <h3 class="slds-text-heading_small">Missing Permission Assignments ({missingPerm.length})</h3>
+                        <lightning-input type="checkbox" label="Select All" onchange={handleSelectAllPerm}></lightning-input>
+                    </div>
+
+                    <div class="scroll-box">
+                        <template if:true={hasPerms}>
+                            <template for:each={missingPerm} for:item="p">
+                                <div key={p.id} class="slds-p-around_xx-small slds-border_bottom slds-grid slds-grid_vertical-align-center">
+                                    <lightning-input
+                                        type="checkbox"
+                                        value={p.id}
+                                        data-id="permCheck"
+                                        class="slds-m-right_small">
+                                    </lightning-input>
+                                    <lightning-icon
+                                        icon-name={p.icon}
+                                        size="xx-small"
+                                        class="slds-m-right_small"
+                                        title={p.type}>
+                                    </lightning-icon>
+                                    <span>{p.label}</span>
+                                </div>
+                            </template>
+                        </template>
+                        <template if:false={hasPerms}>
+                            <div class="slds-text-color_weak slds-p-around_small">
+                                No missing permission assignments found.
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={isStep3}>
+                <div class="slds-box phase-box">
+
+                    <div class="slds-grid slds-grid_vertical-align-start slds-wrap slds-m-bottom_small">
+                        <div class="slds-col slds-size_1-of-3">
+                            <div class="slds-text-title_caps slds-m-bottom_x-small">Analysis Summary</div>
+                            <div class="slds-text-body_regular">{analysisSummary}</div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-3 slds-align_absolute-center">
+                            <div class="slds-m-top_small">
+                                <lightning-button
+                                    label="Finish: Clone Memberships"
+                                    onclick={cloneMemberships}
+                                    variant="success"
+                                    icon-name="utility:check">
+                                </lightning-button>
+                            </div>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-3"></div>
+                    </div>
+
+                    <div class="slds-grid slds-grid_align-spread slds-m-bottom_small">
+                        <h3 class="slds-text-heading_small">Missing Group & Queue Memberships ({missingMemberships.length})</h3>
+                        <lightning-input type="checkbox" label="Select All" onchange={handleSelectAllMembers}></lightning-input>
+                    </div>
+
+                    <div class="scroll-box">
+                        <template if:true={hasMemberships}>
+                            <template for:each={missingMemberships} for:item="m">
+                                <div key={m.id} class="slds-p-around_xx-small slds-border_bottom slds-grid slds-grid_vertical-align-center">
+                                    <lightning-input
+                                        type="checkbox"
+                                        value={m.id}
+                                        data-id="memberCheck"
+                                        class="slds-m-right_small">
+                                    </lightning-input>
+                                    <lightning-icon
+                                        icon-name={m.icon}
+                                        size="xx-small"
+                                        class="slds-m-right_small"
+                                        title={m.type}>
+                                    </lightning-icon>
+                                    <span>{m.label}</span>
+                                </div>
+                            </template>
+                        </template>
+                        <template if:false={hasMemberships}>
+                            <div class="slds-text-color_weak slds-p-around_small">
+                                No missing group or queue memberships found.
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={hasErrors}>
+                <div class="slds-m-top_large custom-error-report">
+                    <div class="error-report-header slds-p-around_x-small">
+                        <strong>Diagnostic Failure Report</strong>
+                    </div>
+                    <div class="error-report-body slds-p-around_small">
+                        <template for:each={lastErrors} for:item="err">
+                            <p key={err} class="slds-m-bottom_xxx-small">• {err}</p>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={isProcessing}>
+                <lightning-spinner alternative-text="Processing..." size="medium"></lightning-spinner>
+            </template>
+        </div>
+    </lightning-card>
+
+    <template if:true={showCreateUserModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open slds-modal_large">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <h2 class="slds-text-heading_medium">Create Target User from Source</h2>
+                </header>
+
+                <div class="slds-modal__content slds-p-around_medium">
+                    <template if:true={isCreatingUser}>
+                        <div class="slds-p-vertical_medium">
+                            <lightning-spinner alternative-text="Creating user..." size="medium"></lightning-spinner>
+                        </div>
+                    </template>
+
+                    <div class="slds-box slds-theme_default slds-m-bottom_medium">
+                        <p><strong>User License:</strong> {createUserMeta.userLicenseName}</p>
+                        <p class="slds-m-top_x-small slds-text-color_weak">
+                            License is determined by the selected profile.
+                        </p>
+                    </div>
+
+                    <div class="slds-grid slds-wrap slds-gutters">
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-input
+                                label="First Name"
+                                value={createUserForm.firstName}
+                                data-field="firstName"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-input
+                                label="Last Name"
+                                required
+                                value={createUserForm.lastName}
+                                data-field="lastName"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-input>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-input
+                                label="Alias"
+                                required
+                                value={createUserForm.alias}
+                                data-field="alias"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-input
+                                label="Nickname"
+                                required
+                                value={createUserForm.communityNickname}
+                                data-field="communityNickname"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-input>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-input
+                                label="Email"
+                                type="email"
+                                required
+                                value={createUserForm.email}
+                                data-field="email"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-input>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-input
+                                label="Username"
+                                required
+                                value={createUserForm.username}
+                                data-field="username"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-input>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Profile"
+                                value={createUserForm.profileId}
+                                options={createUserMeta.profileOptions}
+                                data-field="profileId"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Role"
+                                value={createUserForm.roleId}
+                                options={createUserMeta.roleOptions}
+                                data-field="roleId"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-combobox>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Time Zone"
+                                value={createUserForm.timeZoneSidKey}
+                                options={createUserMeta.timeZoneOptions}
+                                data-field="timeZoneSidKey"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Locale"
+                                value={createUserForm.localeSidKey}
+                                options={createUserMeta.localeOptions}
+                                data-field="localeSidKey"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-combobox>
+                        </div>
+
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Language"
+                                value={createUserForm.languageLocaleKey}
+                                options={createUserMeta.languageOptions}
+                                data-field="languageLocaleKey"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-combobox>
+                        </div>
+                        <div class="slds-col slds-size_1-of-2">
+                            <lightning-combobox
+                                label="Email Encoding"
+                                value={createUserForm.emailEncodingKey}
+                                options={createUserMeta.emailEncodingOptions}
+                                data-field="emailEncodingKey"
+                                onchange={handleCreateUserInputChange}
+                                disabled={isCreatingUser}>
+                            </lightning-combobox>
+                        </div>
+                    </div>
+
+                    <div class="slds-m-top_medium">
+                        <lightning-input
+                            type="checkbox"
+                            label="Active"
+                            checked={createUserForm.isActive}
+                            data-field="isActive"
+                            onchange={handleCreateUserCheckboxChange}
+                            disabled={isCreatingUser}>
+                        </lightning-input>
+
+                        <lightning-input
+                            type="checkbox"
+                            label="Marketing User"
+                            checked={createUserForm.marketingUser}
+                            data-field="marketingUser"
+                            onchange={handleCreateUserCheckboxChange}
+                            disabled={isCreatingUser}>
+                        </lightning-input>
+
+                        <lightning-input
+                            type="checkbox"
+                            label="Offline User"
+                            checked={createUserForm.offlineUser}
+                            data-field="offlineUser"
+                            onchange={handleCreateUserCheckboxChange}
+                            disabled={isCreatingUser}>
+                        </lightning-input>
+
+                        <lightning-input
+                            type="checkbox"
+                            label="Knowledge User"
+                            checked={createUserForm.knowledgeUser}
+                            data-field="knowledgeUser"
+                            onchange={handleCreateUserCheckboxChange}
+                            disabled={isCreatingUser}>
+                        </lightning-input>
+
+                        <lightning-input
+                            type="checkbox"
+                            label="Service Cloud User"
+                            checked={createUserForm.serviceCloudUser}
+                            data-field="serviceCloudUser"
+                            onchange={handleCreateUserCheckboxChange}
+                            disabled={isCreatingUser}>
+                        </lightning-input>
+
+                        <lightning-input
+                            type="checkbox"
+                            label="Chat User"
+                            checked={createUserForm.chatUser}
+                            data-field="chatUser"
+                            onchange={handleCreateUserCheckboxChange}
+                            disabled={isCreatingUser}>
+                        </lightning-input>
+                    </div>
+                </div>
+
+                <footer class="slds-modal__footer">
+                    <lightning-button
+                        label="Cancel"
+                        onclick={closeCreateUserModal}
+                        disabled={isCreatingUser}>
+                    </lightning-button>
+
+                    <lightning-button
+                        variant="brand"
+                        label={createUserButtonLabel}
+                        onclick={saveNewTargetUser}
+                        class="slds-m-left_small"
+                        disabled={isCreatingUser}>
+                    </lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>
