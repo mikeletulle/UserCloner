@@ -174,6 +174,7 @@ To expose the utility in the org:
 2. Add the **User Cloner** component to a Lightning page.
 3. Add the **User Cloner** tab to the desired Lightning app.
 4. Grant the appropriate admin users access to the tab and page.
+5. There is also now an app called User Cloner that has the page on it.
 
 
 
